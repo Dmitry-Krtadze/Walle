@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Аудиосистема WALL-E</title>
+    <style>
+        body { font-family: Arial, sans-serif; background: #2c3e50; color: white; text-align: center; padding: 20px; }
+        .card { background: #34495e; padding: 20px; border-radius: 10px; max-width: 400px; margin: 0 auto 20px auto; box-shadow: 0 4px 8px rgba(0,0,0,0.2); }
+        button { background: #3498db; border: none; color: white; padding: 10px 15px; border-radius: 5px; cursor: pointer; font-size: 16px; margin: 5px;}
+        button:active { background: #2980b9; transform: scale(0.98); }
+        .play-btn { background: #2ecc71; width: 100%; margin-top: 10px; }
+        .file-item { background: #2c3e50; padding: 10px; border-radius: 5px; margin: 5px 0; border: 1px solid #1abc9c;}
+        input[type="file"] { margin-bottom: 10px; }
+    </style>
+</head>
+<body>
+
+    <h2>🤖 WALL-E Audio</h2>
+
+    <div class="card">
+        <h3>Загрузка новых звуков</h3>
+        <form id="uploadForm">
+            <input type="file" id="fileInput" accept=".wav" required>
+            <br>
+            <button type="button" onclick="uploadFile()">Загрузить на SD</button>
+        </form>
+        <p id="status"></p>
+    </div>
+
+    <div class="card">
+        <h3>Плейлист (Файлы на SD)</h3>
+        <button onclick="loadFiles()">🔄 Обновить список</button>
+        <div id="playlist"></div>
+    </div>
+
+    <script>
+        // Загрузка файла на ESP32
+        function uploadFile() {
+            const fileInput = document.getElementById('fileInput');
+            const status = document.getElementById('status');
+            
+            if (fileInput.files.length === 0) {
+                status.innerText = "Выберите WAV файл!";
+                status.style.color = "#e74c3c";
+                return;
+            }
+
+            const formData = new FormData();
+            formData.append("file", fileInput.files[0]);
+            
+            status.innerText = "Загрузка...";
+            status.style.color = "#f1c40f";
+
+            fetch('/upload', { method: 'POST', body: formData })
+            .then(res => res.text())
+            .then(data => {
+                status.innerText = data;
+                status.style.color = "#2ecc71";
+                loadFiles(); // Обновляем плейлист
+                fileInput.value = ""; // Очищаем выбор
+            })
+            .catch(err => {
+                status.innerText = "Ошибка загрузки";
+                status.style.color = "#e74c3c";
+            });
+        }
+
+        // Получение списка файлов с ESP32
+        function loadFiles() {
+            fetch('/list')
+            .then(res => res.json())
+            .then(files => {
+                const playlist = document.getElementById('playlist');
+                playlist.innerHTML = "";
+                
+                if (files.length === 0) {
+                    playlist.innerHTML = "<p>Аудиофайлы не найдены</p>";
+                    return;
+                }
+
+                files.forEach(file => {
+                    const div = document.createElement('div');
+                    div.className = "file-item";
+                    div.innerHTML = `
+                        <strong>${file}</strong>
+                        <button class="play-btn" onclick="playFile('${file}')">▶ Проиграть</button>
+                    `;
+                    playlist.appendChild(div);
+                });
+            })
+            .catch(err => console.error("Ошибка загрузки списка:", err));
+        }
+
+        // Команда на воспроизведение
+        function playFile(filename) {
+            fetch(`/play?file=${filename}`)
+            .then(res => res.text())
+            .then(data => console.log(data));
+        }
+
+        // Загружаем список при старте страницы
+        window.onload = loadFiles;
+    </script>
+</body>
+</html>

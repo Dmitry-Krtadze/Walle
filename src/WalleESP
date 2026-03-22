@@ -1,0 +1,139 @@
+// #include "Arduino.h"
+// #include "I2S.h"
+// #include <WiFi.h>
+// #include "ESPAsyncWebServer.h"
+// #include "esp_task_wdt.h"
+// #include <SD.h>
+
+// #define I2S_MODE I2S_MODE_DAC_BUILT_IN
+
+// const char* ESP_SSID = "Wall-e Access Point";
+// const char* ESP_SSID_PASS = "12345678";
+
+// AsyncWebServer server(80);
+
+// // Глобальная переменная для постановки трека в очередь
+// String fileToPlay = "";
+
+// void setup() {
+//   Serial.begin(115200);
+
+//   if (!SD.begin()) {
+//     Serial.println("Ошибка инициализации SD карты!");
+//     return;
+//   }
+
+//   // Инициализация I2S для вывода звука. Используем 16 бит для стандартных WAV.
+//   I2S_Init(I2S_MODE, I2S_BITS_PER_SAMPLE_16BIT);
+
+//   Serial.println("Создаем точку доступа...");
+//   WiFi.softAP(ESP_SSID, ESP_SSID_PASS);
+//   Serial.print("AP IP: ");
+//   Serial.println(WiFi.softAPIP());
+
+//   setupServer();
+// }
+
+// void loop() {
+//   // Асинхронный сервер крутится сам, а здесь мы проверяем очередь воспроизведения
+//   if (fileToPlay != "") {
+//     playWavFile(fileToPlay);
+//     fileToPlay = ""; // Очищаем очередь после проигрывания
+//   }
+// }
+
+// // Функция физического воспроизведения файла через ЦАП
+// void playWavFile(String filename) {
+//   File audioFile = SD.open(filename);
+//   if (!audioFile || audioFile.isDirectory()) {
+//     Serial.println("Ошибка: файл не найден -> " + filename);
+//     return;
+//   }
+
+//   Serial.println("Воспроизведение: " + filename);
+  
+//   // Пропускаем заголовок WAV файла (44 байта)
+//   audioFile.seek(44);
+
+//   char buffer[1024];
+//   size_t bytesRead;
+
+//   // Побайтово отправляем данные в аудио-драйвер
+//   while (audioFile.available()) {
+//     bytesRead = audioFile.read((uint8_t*)buffer, sizeof(buffer));
+//     I2S_Write(buffer, bytesRead);
+//     esp_task_wdt_reset(); // Сброс ватчдога, чтобы контроллер не ушел в ребут
+//   }
+
+//   audioFile.close();
+  
+//   // Отправляем тишину, чтобы динамик не гудел по завершению
+//   memset(buffer, 0, sizeof(buffer));
+//   I2S_Write(buffer, sizeof(buffer));
+  
+//   Serial.println("Трек завершен");
+// }
+
+// // Функция обработки приема файла
+// void handleUpload(AsyncWebServerRequest *request, String filename, size_t index, uint8_t *data, size_t len, bool final) {
+//   if (!index) {
+//     Serial.printf("Начало загрузки: %s\n", filename.c_str());
+//     request->_tempFile = SD.open("/" + filename, FILE_WRITE);
+//   }
+//   if (len && request->_tempFile) {
+//     request->_tempFile.write(data, len);
+//   }
+//   if (final) {
+//     Serial.printf("Загружен: %s, %u Байт\n", filename.c_str(), index + len);
+//     if (request->_tempFile) {
+//       request->_tempFile.close();
+//     }
+//   }
+// }
+
+// void setupServer() {
+//   // Отдача главной страницы
+//   server.on("/", HTTP_GET, [](AsyncWebServerRequest * request) {
+//     request->send(SD, "/index.html", "text/html");
+//   });
+
+//   // Получение списка WAV файлов с SD-карты
+//   server.on("/list", HTTP_GET, [](AsyncWebServerRequest * request) {
+//     String json = "[";
+//     File root = SD.open("/");
+//     File file = root.openNextFile();
+//     bool first = true;
+    
+//     while(file){
+//       if(!file.isDirectory()){
+//         String name = String(file.name());
+//         // Фильтруем только аудиоформат
+//         if(name.endsWith(".wav") || name.endsWith(".WAV")) {
+//           if(!first) json += ",";
+//           json += "\"" + name + "\"";
+//           first = false;
+//         }
+//       }
+//       file = root.openNextFile();
+//     }
+//     json += "]";
+//     request->send(200, "application/json", json);
+//   });
+
+//   // Постановка файла в очередь на воспроизведение
+//   server.on("/play", HTTP_GET, [](AsyncWebServerRequest * request) {
+//     if (request->hasParam("file")) {
+//       fileToPlay = "/" + request->getParam("file")->value();
+//       request->send(200, "text/plain", "Запуск...");
+//     } else {
+//       request->send(400, "text/plain", "Файл не указан");
+//     }
+//   });
+
+//   // Загрузка файла
+//   server.on("/upload", HTTP_POST, [](AsyncWebServerRequest * request) {
+//     request->send(200, "text/plain", "Файл успешно сохранен на SD-карту");
+//   }, handleUpload);
+
+//   server.begin();
+// }
